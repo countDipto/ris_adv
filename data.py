@@ -57,11 +57,16 @@ def ri_to_complex(x, scale):
 
 
 def add_pilot_noise(hp, snr_db, generator=None):
-    """Complex AWGN on the sensed partial CSI at a per-sample SNR (None = noiseless)."""
+    """Complex AWGN on the sensed partial CSI at a per-sample SNR.
+    snr_db: None (noiseless), a number, or a (lo, hi) tuple -> SNR drawn uniformly per sample."""
     if snr_db is None:
         return hp
+    if isinstance(snr_db, (tuple, list)):
+        lo, hi = snr_db
+        snr_db = lo + (hi - lo) * torch.rand(hp.shape[:-2] + (1, 1), generator=generator)
+    snr_db = torch.as_tensor(snr_db, dtype=torch.float32)
     p = hp.abs().pow(2).mean(dim=(-2, -1), keepdim=True)
-    sigma = torch.sqrt(p / (10 ** (snr_db / 10)) / 2)
+    sigma = torch.sqrt(p / (10 ** (snr_db.to(p.device) / 10)) / 2)
     n = torch.complex(torch.randn(hp.shape, generator=generator),
                       torch.randn(hp.shape, generator=generator)).to(hp.device)
     return hp + sigma * n
@@ -110,3 +115,22 @@ def load_split(data_dir, split="training", variant=""):
 
 def load_tx_ris(data_dir):
     return load_pt(os.path.join(data_dir, "channel_tx_ris.pt"))
+
+
+def split_indices(locations, val_frac=0.05, holdout_frac=0.10, seed=0):
+    """Split the training file into train / val (random) / far (spatially disjoint).
+
+    far: users in the last `holdout_frac` of the street's x-range. They are never trained
+    on, so they measure generalisation to an unseen part of the street. The released test
+    file is interleaved with the training grid (every test user is 0.2 m from a training
+    user), so on its own it measures interpolation, not generalisation.
+    """
+    loc = torch.as_tensor(locations)[:, :2]
+    x = loc[:, 0]
+    cut = x.min() + (1 - holdout_frac) * (x.max() - x.min())
+    far = torch.nonzero(x > cut).flatten()
+    rest = torch.nonzero(x <= cut).flatten()
+    g = torch.Generator().manual_seed(seed)
+    rest = rest[torch.randperm(len(rest), generator=g)]
+    n_val = int(round(val_frac * len(rest)))
+    return {"train": rest[n_val:], "val": rest[:n_val], "far": far}
