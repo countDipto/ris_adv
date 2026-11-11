@@ -79,12 +79,16 @@ def main():
     ap.add_argument("--frequency_hz", type=float, default=3.5e9)
     ap.add_argument("--legitimate_center", type=float, nargs=3,
                     default=(278.42, 576.97, 2.0))
+    ap.add_argument("--legitimate_normal", type=float, nargs=3, default=None,
+                    help="freeze the legitimate RIS orientation from train-only sweep")
     ap.add_argument("--attacker_rows", type=int, default=8)
     ap.add_argument("--attacker_cols", type=int, default=8)
     ap.add_argument("--attacker_spacing_lambda", type=float, default=0.5)
     ap.add_argument("--forward_m", type=float, default=4.0)
     ap.add_argument("--lateral_m", type=float, default=8.0)
     ap.add_argument("--height_offset_m", type=float, default=0.0)
+    ap.add_argument("--attacker_normal", type=float, nargs=3, default=None,
+                    help="explicit unit normal of vertical malicious panel (from placement sweep)")
     ap.add_argument("--efficiency", type=float, default=1.0)
     ap.add_argument("--phase_offset_rad", type=float, default=0.0)
     ap.add_argument("--reference_channels", default=None,
@@ -101,11 +105,15 @@ def main():
     geometry = LinkGeometry(
         frequency_hz=args.frequency_hz,
         legitimate_center_xyz=tuple(args.legitimate_center),
+        legitimate_normal_xyz=(tuple(args.legitimate_normal)
+                               if args.legitimate_normal is not None else None),
         malicious_rows=args.attacker_rows, malicious_cols=args.attacker_cols,
         malicious_spacing_lambda=args.attacker_spacing_lambda,
         attacker_forward_m=args.forward_m,
         attacker_lateral_m=args.lateral_m,
         attacker_height_offset_m=args.height_offset_m,
+        malicious_normal_xyz=(tuple(args.attacker_normal)
+                              if args.attacker_normal is not None else None),
         reflection_efficiency=args.efficiency,
         relative_phase_offset_rad=args.phase_offset_rad)
 

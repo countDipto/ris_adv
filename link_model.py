@@ -19,6 +19,7 @@ SPEED_OF_LIGHT = 299_792_458.0
 class LinkGeometry:
     frequency_hz: float = 3.5e9
     legitimate_center_xyz: tuple = (278.42, 576.97, 2.0)
+    legitimate_normal_xyz: tuple | None = None  # freeze orientation between sweep and link generation
     legitimate_rows: int = 36
     legitimate_cols: int = 36
     legitimate_spacing_lambda: float = 0.25
@@ -28,6 +29,7 @@ class LinkGeometry:
     attacker_forward_m: float = 4.0
     attacker_lateral_m: float = 8.0
     attacker_height_offset_m: float = 0.0
+    malicious_normal_xyz: tuple | None = None  # optional fixed vertical-panel facing
     reflection_efficiency: float = 1.0  # idealized amplitude efficiency
     relative_phase_offset_rad: float = 0.0
 
@@ -49,6 +51,14 @@ class LinkGeometry:
             raise ValueError("reflection_efficiency must lie in (0,1]")
         if self.attacker_lateral_m == 0:
             raise ValueError("lateral offset must be nonzero for the default reflector geometry")
+        if self.legitimate_normal_xyz is not None:
+            normal = unit(self.legitimate_normal_xyz)
+            if abs(normal[2]) > 1e-7:
+                raise ValueError("legitimate normal must be horizontal for a vertical panel")
+        if self.malicious_normal_xyz is not None:
+            normal = unit(self.malicious_normal_xyz)
+            if abs(normal[2]) > 1e-7:
+                raise ValueError("malicious normal must be horizontal for a vertical panel")
 
 
 def unit(v):
@@ -113,12 +123,14 @@ def build_reflective_links(user_train_xyz, user_test_xyz, cfg=LinkGeometry()):
 
     lam = cfg.wavelength_m
     center_l = np.asarray(cfg.legitimate_center_xyz, dtype=np.float64)
-    normal_l = infer_street_direction(center_l, train)
+    normal_l = (infer_street_direction(center_l, train)
+                if cfg.legitimate_normal_xyz is None else unit(cfg.legitimate_normal_xyz))
     lateral = unit(np.cross(np.array([0., 0., 1.]), normal_l))
     center_a = (center_l + cfg.attacker_forward_m * normal_l +
                 cfg.attacker_lateral_m * lateral +
                 np.array([0, 0, cfg.attacker_height_offset_m]))
-    normal_a = -np.sign(cfg.attacker_lateral_m) * lateral
+    normal_a = (-np.sign(cfg.attacker_lateral_m) * lateral
+                if cfg.malicious_normal_xyz is None else unit(cfg.malicious_normal_xyz))
 
     legitimate_xyz = vertical_upa(
         center_l, cfg.legitimate_rows, cfg.legitimate_cols,

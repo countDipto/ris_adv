@@ -53,6 +53,13 @@ class TestGeometry(unittest.TestCase):
                                               LinkGeometry(reflection_efficiency=0.5))
         self.assertTrue(np.allclose(G2, 0.5 * G1, atol=1e-9))
 
+    def test_legitimate_normal_is_explicitly_frozen_for_sweep_reproduction(self):
+        cfg = LinkGeometry(legitimate_normal_xyz=(1., 0., 0.),
+                           malicious_normal_xyz=(0., -1., 0.))
+        _, _, _, info = build_reflective_links(self.train, self.test, cfg)
+        self.assertEqual(info["legitimate_normal_xyz"], [1., 0., 0.])
+        self.assertEqual(info["malicious_normal_xyz"], [0., -1., 0.])
+
     def test_generator_npz_roundtrip_without_torch(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
